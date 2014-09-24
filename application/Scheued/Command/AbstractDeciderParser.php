@@ -63,6 +63,7 @@ abstract class AbstractDeciderParser extends AbstractCommand
             $eventType = (isset($task) && isset($task['eventType'])) ? $task['eventType'] : '';
             switch ($eventType) {
                 case 'ActivityTaskFailed':
+                case 'ScheduleActivityTaskFailed': // @todo change the way we retry
                     $this->_parseDecisionData($i, $decisionData);
                     break;
                 case 'ActivityTaskCanceled':

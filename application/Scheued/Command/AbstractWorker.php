@@ -17,13 +17,6 @@ abstract class AbstractWorker extends AbstractCommand
 {
     const TYPE = 'worker';
 
-    protected function _render(Request $request, ProcessBuilder &$commandBuilder)
-    {
-        $task = $request->query->get('task');
-        if ($task) {
-            $commandBuilder->add($task);
-        }
-    }
     /**
      * This is where we configure the command name, description and arguments or options
      */
@@ -56,7 +49,7 @@ abstract class AbstractWorker extends AbstractCommand
                 array(
                     'domain'   => $this->_config['swf']['domain'],
                     'taskList' => array(
-                        'name' => $this->_getTaskName(),
+                        'name' => $this->_taskList,
                     ),
                     'identity' => $this->getName()
                 )
@@ -130,5 +123,15 @@ abstract class AbstractWorker extends AbstractCommand
         );
 
         return $result->get('count');
+    }
+
+    /* WEB INTERFACE RELATED METHODS */
+    protected function _render(Request $request, ProcessBuilder &$commandBuilder)
+    {
+//        $task = $request->query->get('task');
+        $task = $request->get('task');
+        if ($task) {
+            $commandBuilder->add($task);
+        }
     }
 } 

@@ -1,11 +1,10 @@
 <?php
+use Symfony\Component\HttpFoundation\Response;
 const APP_NAME    = 'Scheued';
 const APP_VERSION = 0.1;
-
 // Define path to application directory
 defined('APPLICATION_PATH')
 || define('APPLICATION_PATH', realpath(__DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'application'));
-
 // Define application environment
 defined('APPLICATION_ENV')
 || define(
@@ -22,7 +21,6 @@ getenv('HOSTNAME') == 'development'
 )
 )
 );
-
 // Define path to application directory
 defined('LIBRARY_PATH')
 || define('LIBRARY_PATH', APPLICATION_PATH . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'vendor');
@@ -38,9 +36,15 @@ $finder       = new \Symfony\Component\Finder\Finder();
 $commandsPath = APPLICATION_PATH . DIRECTORY_SEPARATOR . APP_NAME . DIRECTORY_SEPARATOR . 'Command' . DIRECTORY_SEPARATOR;
 $iterator     = $finder->files()->depth('>0')->in($commandsPath);
 foreach ($iterator as $file) {
-    $controller = _convertToUrlFormat($file->getPathInfo()->getFilename());
+    $path = $file->getPathInfo()->getPathname();
+    preg_match('/(worker|decider|flow)(.*)/i', $path, $matches);
+    $controller = _convertToUrlFormat($matches[1]);
+    $fileName   = $file->getFilename();
+    if(!empty($matches[2])) {
+        $fileName = $matches[2] . $fileName;
+    }
     $action     = _convertToUrlFormat(
-        str_ireplace(array($controller, '.php', DIRECTORY_SEPARATOR), '', $file->getFilename())
+        str_ireplace(array($controller, '.php', DIRECTORY_SEPARATOR), '', $fileName)
     );
     $class      = str_replace(array(APPLICATION_PATH, '.php', DIRECTORY_SEPARATOR), array('', '', '\\'), $file);
     $webApp->match(DIRECTORY_SEPARATOR . $controller . DIRECTORY_SEPARATOR . $action, $class . '::render');

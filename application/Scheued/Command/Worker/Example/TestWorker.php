@@ -6,7 +6,7 @@
  * Time: 10:51 PM
  */
 
-namespace Scheued\Command\Worker;
+namespace Scheued\Command\Worker\Example;
 
 use Scheued\Command\AbstractWorker;
 use Symfony\Component\Console\Input\InputInterface;
@@ -15,7 +15,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 class TestWorker extends AbstractWorker {
     protected function configure()
     {
-        $this->setDescription('This is a test worker');
+        $this->setDescription('This is an example worker');
 
         parent::configure();
     }
@@ -25,7 +25,11 @@ class TestWorker extends AbstractWorker {
         $params = parent::execute($input, $output);
         // This is where we do some execution logic
         $this->_returnRandomCompletion($params, $output);
-//@todo will have to call a decider
+        // call a decider
+        $this->_swfActionCall(
+            'http://development/scheued/public_html/decider/' . strtolower(basename(__DIR__)),
+            array('task' => $this->_taskList, 'async' => true)
+        );
     }
 
     protected function _returnRandomCompletion($params, OutputInterface $output) {

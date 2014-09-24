@@ -11,11 +11,11 @@ use Scheued\Command\AbstractDecider;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class TestDecider extends AbstractDecider
+class ExampleDecider extends AbstractDecider
 {
     protected function configure()
     {
-        $this->setDescription('This is a test decider');
+        $this->setDescription('This is an example decider');
         parent::configure();
     }
 
@@ -28,14 +28,13 @@ class TestDecider extends AbstractDecider
     protected function _decide($decisionData)
     {
         $result = array();
-//@todo will have to call a worker
         foreach($decisionData as $eventType => $data) {
             switch($eventType) {
                 case 'WorkflowExecutionStarted': // Schedule the first activity in our workflow
                     $this->_decision = $this->_scheduleActivityTask(
-                        'Test',
+                        'Example-Test',
                         '0.1',
-                        'test',
+                        $data['taskList']['name'],
                         $data['input'],
                         json_encode(array('step' => 1))
                     );
@@ -47,24 +46,24 @@ class TestDecider extends AbstractDecider
                         switch ($control['step']) {
                             case 1:
                                 $this->_decision = $this->_scheduleActivityTask(
-                                    'Test',
+                                    'Example-Test',
                                     '0.1',
-                                    'test',
+                                    $data['taskList']['name'],
                                     $result['result'],
                                     json_encode(array('step' => 2))
                                 );
                                 break;
                             default:
                                 // Return result and complete workflow
-                                $this->_decision = $this->_completeWorkflowExecution($result);
+                                $this->_decision = $this->_completeWorkflowExecution($result['result']);
                         }
                     } else { // Retrying a job
                         ++$control['retry'];
                         $control         = json_encode($control);
                         $this->_decision = $this->_scheduleActivityTask(
-                            'Test',
+                            'Example-Test',
                             '0.1',
-                            'test',
+                            $data['taskList']['name'],
                             isset($data['input']) ? $data['input'] : '',
                             $control
                         );
@@ -76,7 +75,7 @@ class TestDecider extends AbstractDecider
                 case 'ActivityTaskCanceled':
                     if($data == 'No need to run this') {
                         // Return result and complete workflow
-                        $this->_decision = $this->_completeWorkflowExecution($data);
+                        $this->_decision = $this->_cancelWorkflowExecution($data);
                         break 2;
                     }
                     // Might have to retry

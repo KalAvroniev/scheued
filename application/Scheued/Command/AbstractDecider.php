@@ -19,14 +19,6 @@ abstract class AbstractDecider extends AbstractDeciderParser
     const TYPE = 'decider';
     protected $_tasks = array();
 
-    protected function _render(Request $request, ProcessBuilder &$commandBuilder)
-    {
-        $task = $request->query->get('task');
-        if ($task) {
-            $commandBuilder->add($task);
-        }
-    }
-
     /**
      * This is where we configure the command name, description and arguments or options
      * Default arguments:
@@ -110,6 +102,18 @@ abstract class AbstractDecider extends AbstractDeciderParser
                     )
                 )
             );
+            // call a worker
+            switch ($this->_decision['decisionType']) {
+                case 'ScheduleActivityTask':
+                    $worker = strtolower(
+                        $this->_decision['scheduleActivityTaskDecisionAttributes']['activityType']['name']
+                    );
+                    $this->_swfActionCall(
+                        'http://development/scheued/public_html/worker/' . $worker,
+                        array('task' => $this->_taskList, 'async' => true)
+                    );
+                    break;
+            }
         }
     }
 
@@ -152,8 +156,9 @@ abstract class AbstractDecider extends AbstractDeciderParser
     {
         $data = array('result' => $result);
 
-        return array('decisionType'                                => 'CompleteWorkflowExecution',
-                     'completeWorkflowExecutionDecisionAttributes' => $data
+        return array(
+            'decisionType'                                => 'CompleteWorkflowExecution',
+            'completeWorkflowExecutionDecisionAttributes' => $data
         );
     }
 
@@ -235,8 +240,9 @@ abstract class AbstractDecider extends AbstractDeciderParser
     {
         $data = array('activityId' => $activityId);
 
-        return array('decisionType'                                => 'RequestCancelActivityTask',
-                     'requestCancelActivityTaskDecisionAttributes' => $data
+        return array(
+            'decisionType'                                => 'RequestCancelActivityTask',
+            'requestCancelActivityTaskDecisionAttributes' => $data
         );
     }
 
@@ -412,9 +418,9 @@ abstract class AbstractDecider extends AbstractDeciderParser
                 $name = $parameter->getName();
                 switch ($name) {
                     case 'control':
-                        $value = isset($args[$parameter->getPosition()]) ?
+                        $value       = isset($args[$parameter->getPosition()]) ?
                             json_decode($args[$parameter->getPosition()], true) : array();
-                        $value = array_merge(array('retry' => 1), $value);
+                        $value       = array_merge(array('retry' => 1), $value);
                         $data[$name] = json_encode($value);
                         break;
                     default:
@@ -422,6 +428,16 @@ abstract class AbstractDecider extends AbstractDeciderParser
                             $args[$parameter->getPosition()] : $parameter->getDefaultValue();
                 }
             }
+        }
+    }
+
+    /* WEB INTERFACE RELATED METHODS */
+    protected function _render(Request $request, ProcessBuilder &$commandBuilder)
+    {
+//        $task = $request->query->get('task');
+        $task = $request->get('task');
+        if ($task) {
+            $commandBuilder->add($task);
         }
     }
 } 

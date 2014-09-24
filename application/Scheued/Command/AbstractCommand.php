@@ -13,6 +13,8 @@ use Cilex\Command\Command;
 use Doctrine\Common\Cache\FilesystemCache;
 use Exception;
 use Guzzle\Cache\DoctrineCacheAdapter;
+use Guzzle\Http\Client;
+use Guzzle\Plugin\Async\AsyncPlugin;
 use Silex\Application;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -25,57 +27,12 @@ use Symfony\Component\Process\ProcessBuilder;
 
 abstract class AbstractCommand extends Command
 {
-    /** @var JsonResponse */
-    protected $_response = null;
     /** @var SwfClient */
     protected $_swfClient = null;
     protected $_snsClient = null;
     protected $_config;
     protected $_token = '';
     protected $_taskList = '';
-
-    public function render(Request $request, Application $app)
-    {
-        try {
-            $runAsync       = (bool)$request->query->get('async', false);
-            $commandBuilder = new ProcessBuilder();
-            $commandBuilder->setPrefix(
-                APPLICATION_PATH . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'cli.php'
-            )
-                ->add(str_replace(DIRECTORY_SEPARATOR, ':', substr($request->getPathInfo(), 1)))
-                ->add(APPLICATION_ENV);
-
-            // Modify the command based on type
-            $this->_render($request, $commandBuilder);
-
-            $process = $commandBuilder->getProcess();
-//            var_dump($process->getCommandLine()); exit;
-            if ($runAsync) {
-                $process->start();
-                $this->_response = $app->json(array('success' => 'This is an async call'));
-            } else {
-                $object = $this;
-                $process->mustRun(
-                    function ($type, $buffer) use ($app, $object) {
-                        call_user_func_array(array($object, 'getCommandResponse'), array($type, $buffer, $app));
-                    }
-                );
-            }
-        } catch (RuntimeException $e) {
-            $this->getCommandResponse(Process::ERR, $e->getMessage(), $app, $e->getCode());
-        }
-
-        return $this->_response;
-    }
-
-    public function getCommandResponse($type, $buffer, $app, $code = 500)
-    {
-        if (Process::ERR === $type && $buffer != "\n") {
-            throw new \Exception($buffer, $code);
-        } else {
-            $this->_response = $app->json(array('success' => json_decode($buffer, true)));
-        }
-    }
 
     /**
      * This is where we configure the command name, description and arguments or options
@@ -84,7 +41,8 @@ abstract class AbstractCommand extends Command
     protected function configure()
     {
         $this->addArgument(
-            'environment', InputArgument::REQUIRED | InputArgument::OPTIONAL, 'What environment to run the script in', 'production'
+            'environment', InputArgument::REQUIRED | InputArgument::OPTIONAL, 'What environment to run the script in',
+            'production'
         );
     }
 
@@ -92,7 +50,9 @@ abstract class AbstractCommand extends Command
     {
         if ($this->_loadConfigByProfile($input, $output)) {
             // Create a cache adapter that stores data on the filesystem
-            $old = umask(0); // need to reset the umask in order to be able to create folder wih 777 permissions
+            $old          = umask(
+                0
+            ); // need to reset the umask in order to be able to create folder wih 777 permissions
             $cacheAdapter = new DoctrineCacheAdapter(new FilesystemCache('/tmp/cache'));
             umask($old); // return to normal value
             // Provide a credentials.cache to cache credentials to the file system
@@ -136,9 +96,10 @@ abstract class AbstractCommand extends Command
     protected function _getClassName($type)
     {
         $class = get_class($this);
-        preg_match('/' . $type . '.*?([^\\\\]*)' . $type . '/i', $class, $matches);
+        preg_match('/' . $type . '(.*?)' . $type . '/i', $class, $matches);
+        $command = implode('-', array_map('lcfirst', explode('\\', $matches[1])));
 
-        return $type . ':' . lcfirst($matches[1]);
+        return $type . preg_replace('/-/', ':', strtolower(preg_replace('/(.)([A-Z])/', '$1-$2', $command)), 1);
     }
 
     /**
@@ -170,12 +131,12 @@ abstract class AbstractCommand extends Command
         $tmp = array();
         foreach ($options as $option) {
             $keys  = explode('.', $option);
-            $level = & $tmp;
+            $level = &$tmp;
             for ($i = 0; $i < count($keys) - 1; $i++) {
                 if (!array_key_exists($keys[$i], $level)) {
                     $level[$keys[$i]] = array();
                 }
-                $level = & $level[$keys[$i]];
+                $level = &$level[$keys[$i]];
             }
             $keyVal            = explode('=', $keys[$i]);
             $level[$keyVal[0]] = $keyVal[1];
@@ -195,7 +156,74 @@ abstract class AbstractCommand extends Command
         return str_replace('.', '', microtime(true));
     }
 
+    protected function _swfActionCall($url, $query)
+    {
+        $client   = new Client();
+        if(isset($query['async']) && (bool)$query['async']) {
+            $client->addSubscriber(new AsyncPlugin());
+        }
+        $url .= '?' . http_build_query($query);
+        $response = $client->get($url)->send();
+        if ($response->isSuccessful()) {
+            return $response->json();
+        }
+    }
+
     abstract protected function _countPendingTasks(InputInterface $input);
+
+    /* WEB INTERFACE RELATED METHODS */
+    /** @var JsonResponse */
+    protected $_response = null;
+
+    public function render(Request $request, Application $app)
+    {
+        try {
+            $path = explode('/', parse_url('http://development/scheued/public_html/decider/example', PHP_URL_PATH));
+            while (count($path) > 2) {
+                array_shift($path);
+            }
+//            $runAsync       = (bool)$request->query->get('async', false);
+            $commandBuilder = new ProcessBuilder();
+            $commandBuilder->setPrefix(
+                APPLICATION_PATH . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'cli.php'
+            )
+                ->add(str_replace('/', ':', substr($request->getPathInfo(), 1)))
+                ->add(APPLICATION_ENV);
+            // Modify the command based on type
+            $this->_render($request, $commandBuilder);
+            $process = $commandBuilder->getProcess();
+            $object = $this;
+//            if ($runAsync) {
+//                $process->start();
+//                $this->_response = $app->json(array('success' => 'This is an async call'));
+////                $process->wait(
+////                    function ($type, $buffer) use ($app, $object) {
+////                        call_user_func_array(array($object, 'getCommandResponse'), array($type, $buffer, $app));
+////                    }
+////                );
+//            } else {
+                $process->mustRun(
+                    function ($type, $buffer) use ($app, $object) {
+                        call_user_func_array(array($object, 'getCommandResponse'), array($type, $buffer, $app));
+                    }
+                );
+//            }
+        } catch (RuntimeException $e) {
+            $this->getCommandResponse(Process::ERR, $e->getMessage(), $app, $e->getCode());
+        }
+
+        return $this->_response;
+    }
+
+    public function getCommandResponse($type, $buffer, $app, $code = 500)
+    {
+        if (Process::ERR === $type && $buffer != "\n") {
+            throw new \Exception($buffer, $code);
+        } else {
+            $result = json_decode($buffer, true);
+            $this->_response = $app->json(array('success' => $result));
+        }
+    }
 
     abstract protected function _render(Request $request, ProcessBuilder &$commandBuilder);
 } 

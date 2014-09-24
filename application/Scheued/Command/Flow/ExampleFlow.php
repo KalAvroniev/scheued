@@ -12,11 +12,11 @@ use Scheued\Command\AbstractWorkflow;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class TestFlow extends AbstractWorkflow
+class ExampleFlow extends AbstractWorkflow
 {
     protected function configure()
     {
-        $this->setDescription('This is a test workflow');
+        $this->setDescription('This is an example workflow');
         parent::configure();
     }
 

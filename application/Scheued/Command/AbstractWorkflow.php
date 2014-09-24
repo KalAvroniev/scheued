@@ -30,28 +30,6 @@ class AbstractWorkflow extends AbstractCommand
         'start'
     );
 
-    protected function _render(Request $request, ProcessBuilder &$commandBuilder) {
-        $action = $request->query->get('action');
-        $version = $request->query->get('version');
-        $input = $request->query->get('input');
-        $filters = $request->query->get('filter');
-        $commandBuilder->add($action);
-        if($version) {
-            $commandBuilder->add('--ver=' . $version);
-        }
-        if($input) {
-            $commandBuilder->add('--input=' . $input);
-        }
-        if($filters) {
-            if(!is_array($filters)) {
-                $filters = array($filters);
-            }
-            foreach($filters as $filter) {
-                $commandBuilder->add('--filter='.$filter);
-            }
-        }
-    }
-
     /**
      * This is where we configure the command name, description and arguments or options
      * Default arguments:
@@ -64,7 +42,6 @@ class AbstractWorkflow extends AbstractCommand
     protected function configure()
     {
         parent::configure();
-
         $name = $this->_getClassName(AbstractWorkflow::TYPE);
         $this->setName($name)
             ->setProcessTitle($name)
@@ -240,7 +217,7 @@ class AbstractWorkflow extends AbstractCommand
     protected function _start(InputInterface $input)
     {
         $id       = $this->_generateId();
-        $taskList = $this->_getTaskName(); // . '-' . $id;
+        $taskList = $this->_getTaskName() . '-' . $id;
         $result   = $this->_swfClient->startWorkflowExecution(
             array(
                 'domain'       => $this->_config['swf']['domain'],
@@ -255,9 +232,11 @@ class AbstractWorkflow extends AbstractCommand
                 'input'        => $input->getOption('input')
             )
         );
-
-//@todo will have to call a decider
-
+        // call a decider
+        $this->_swfActionCall(
+            'http://development/scheued/public_html/decider/' . $this->_getTaskName(),
+            array('task' => $taskList, 'async' => true)
+        );
         return $result->getAll();
     }
 
@@ -359,5 +338,29 @@ class AbstractWorkflow extends AbstractCommand
     protected function _workflowExecutionContinuedAsNew($task)
     {
         return array($task['eventType'] => $task['workflowExecutionContinuedAsNewEventAttributes']);
+    }
+
+    /* WEB INTERFACE RELATED METHODS */
+    protected function _render(Request $request, ProcessBuilder &$commandBuilder)
+    {
+        $action  = $request->query->get('action');
+        $version = $request->query->get('version');
+        $input   = $request->query->get('input');
+        $filters = $request->query->get('filter');
+        $commandBuilder->add($action);
+        if ($version) {
+            $commandBuilder->add('--ver=' . $version);
+        }
+        if ($input) {
+            $commandBuilder->add('--input=' . $input);
+        }
+        if ($filters) {
+            if (!is_array($filters)) {
+                $filters = array($filters);
+            }
+            foreach ($filters as $filter) {
+                $commandBuilder->add('--filter=' . $filter);
+            }
+        }
     }
 }
