@@ -1,5 +1,6 @@
 #!/usr/bin/env php
 <?php
+set_time_limit(60);
 const APP_NAME = 'Scheued';
 const APP_VERSION = 0.1;
 
@@ -30,6 +31,9 @@ foreach ($iterator as $file) {
     $command = str_replace(array(APPLICATION_PATH, '.php', DIRECTORY_SEPARATOR), array('', '', '\\'), $file);
     $cliApp->command(new $command());
 }
+
+// Add watchdog command
+$cliApp->command(new Scheued\Command\WatchDog());
 
 $cliApp->run();
 

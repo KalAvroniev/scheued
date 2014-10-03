@@ -7,7 +7,6 @@
  */
 namespace Scheued\Command;
 
-use Aws\Sns\SnsClient;
 use Aws\Swf\SwfClient;
 use Cilex\Command\Command;
 use Doctrine\Common\Cache\FilesystemCache;
@@ -31,8 +30,8 @@ abstract class AbstractCommand extends Command
     protected $_swfClient = null;
     protected $_snsClient = null;
     protected $_config;
-    protected $_token = '';
-    protected $_taskList = '';
+    protected $_token     = '';
+    protected $_taskList  = '';
 
     /**
      * This is where we configure the command name, description and arguments or options
@@ -59,15 +58,7 @@ abstract class AbstractCommand extends Command
             $this->_swfClient = SwfClient::factory(
                 array(
                     'credentials.cache' => $cacheAdapter,
-                    'region'            => 'us-east-1',
-                    'key'               => $this->_config['aws_credentials']['key'],
-                    'secret'            => $this->_config['aws_credentials']['secret']
-                )
-            );
-            $this->_snsClient = SnsClient::factory(
-                array(
-                    'credentials.cache' => $cacheAdapter,
-                    'region'            => 'us-east-1',
+                    'region'            => $this->_config['aws_credentials']['region'],
                     'key'               => $this->_config['aws_credentials']['key'],
                     'secret'            => $this->_config['aws_credentials']['secret']
                 )
@@ -158,14 +149,16 @@ abstract class AbstractCommand extends Command
 
     protected function _swfActionCall($url, $query)
     {
-        $client   = new Client();
-        if(isset($query['async']) && (bool)$query['async']) {
+        $client = new Client();
+        if (isset($query['async']) && (bool)$query['async']) {
             $client->addSubscriber(new AsyncPlugin());
         }
         $url .= '?' . http_build_query($query);
         $response = $client->get($url)->send();
         if ($response->isSuccessful()) {
-            return $response->json();
+            return $response->json(array('success' => 'Call made to ' . $url));
+        } else {
+            return $response->json(array('error' => 'Unable to make a call to ' . $url));
         }
     }
 
@@ -192,7 +185,7 @@ abstract class AbstractCommand extends Command
             // Modify the command based on type
             $this->_render($request, $commandBuilder);
             $process = $commandBuilder->getProcess();
-            $object = $this;
+            $object  = $this;
 //            if ($runAsync) {
 //                $process->start();
 //                $this->_response = $app->json(array('success' => 'This is an async call'));
@@ -202,11 +195,11 @@ abstract class AbstractCommand extends Command
 ////                    }
 ////                );
 //            } else {
-                $process->mustRun(
-                    function ($type, $buffer) use ($app, $object) {
-                        call_user_func_array(array($object, 'getCommandResponse'), array($type, $buffer, $app));
-                    }
-                );
+            $process->mustRun(
+                function ($type, $buffer) use ($app, $object) {
+                    call_user_func_array(array($object, 'getCommandResponse'), array($type, $buffer, $app));
+                }
+            );
 //            }
         } catch (RuntimeException $e) {
             $this->getCommandResponse(Process::ERR, $e->getMessage(), $app, $e->getCode());
@@ -220,7 +213,7 @@ abstract class AbstractCommand extends Command
         if (Process::ERR === $type && $buffer != "\n") {
             throw new \Exception($buffer, $code);
         } else {
-            $result = json_decode($buffer, true);
+            $result          = json_decode($buffer, true);
             $this->_response = $app->json(array('success' => $result));
         }
     }

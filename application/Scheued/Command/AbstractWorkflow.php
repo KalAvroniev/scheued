@@ -220,23 +220,25 @@ class AbstractWorkflow extends AbstractCommand
         $taskList = $this->_getTaskName() . '-' . $id;
         $result   = $this->_swfClient->startWorkflowExecution(
             array(
-                'domain'       => $this->_config['swf']['domain'],
-                'workflowId'   => $id,
-                'workflowType' => array(
+                'domain'                  => $this->_config['swf']['domain'],
+                'workflowId'              => $id,
+                'workflowType'            => array(
                     'name'    => $this->_getWorkFlowName(),
                     'version' => $input->getOption('ver')
                 ),
-                'taskList'     => array(
+                'taskList'                => array(
                     'name' => $taskList
                 ),
-                'input'        => $input->getOption('input')
+                'input'                   => $input->getOption('input'),
+                'taskStartToCloseTimeout' => $this->_config['swf']['decision_timeout']
             )
         );
         // call a decider
         $this->_swfActionCall(
             'http://development/scheued/public_html/decider/' . $this->_getTaskName(),
-            array('task' => $taskList, 'async' => true)
+            array('task-list' => $taskList, 'async' => true)
         );
+
         return $result->getAll();
     }
 

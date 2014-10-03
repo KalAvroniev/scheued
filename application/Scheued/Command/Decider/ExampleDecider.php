@@ -7,6 +7,7 @@
  */
 namespace Scheued\Command\Decider;
 
+use Aws\Swf\Enum\EventType;
 use Scheued\Command\AbstractDecider;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -22,70 +23,91 @@ class ExampleDecider extends AbstractDecider
     protected function execute(InputInterface $input, OutputInterface $output)
     {
         parent::execute($input, $output);
-        $output->writeln(json_encode($this->_decision));
+        $output->writeln(json_encode($this->_decisions));
     }
 
     protected function _decide($decisionData)
     {
-        $result = array();
-        foreach($decisionData as $eventType => $data) {
-            switch($eventType) {
-                case 'WorkflowExecutionStarted': // Schedule the first activity in our workflow
-                    $this->_decision = $this->_scheduleActivityTask(
+        $result  = array();
+        $control = array();
+
+        foreach ($decisionData as $eventType => $data) {
+            switch ($eventType) {
+                case EventType::WORKFLOW_EXECUTION_STARTED: // Schedule the first activity in our workflow
+                    $this->_decisions[] = $this->_scheduleActivityTask(
                         'Example-Test',
                         '0.1',
                         $data['taskList']['name'],
                         $data['input'],
-                        json_encode(array('step' => 1))
+                        json_encode(array('step' => 1)),
+                        'NONE',
+                        $this->_config['swf']['decision_timeout']
                     );
                     break 2;
-                case 'ActivityTaskScheduled':
-                    $control = json_decode($data['control'], true);
+                case EventType::ACTIVITY_TASK_SCHEDULED:
+                    if(empty($control)) {
+                        $control = json_decode($data['control'], true);
+                    }
                     // We are coming from ActivityTaskCompleted
-                    if(!empty($result)) {
+                    if (!empty($result)) {
                         switch ($control['step']) {
                             case 1:
-                                $this->_decision = $this->_scheduleActivityTask(
+                                // Delay next step
+                                $this->_decisions[] = $this->_startTimer(
+                                    $this->_generateId(),
+                                    '60',
+                                    json_encode(array('step' => 2))
+                                );
+                                break;
+                            case 2:
+                                $this->_decisions[] = $this->_scheduleActivityTask(
                                     'Example-Test',
                                     '0.1',
                                     $data['taskList']['name'],
                                     $result['result'],
-                                    json_encode(array('step' => 2))
+                                    json_encode(array('step' => 3)),
+                                    'NONE',
+                                    $this->_config['swf']['decision_timeout']
                                 );
                                 break;
                             default:
                                 // Return result and complete workflow
-                                $this->_decision = $this->_completeWorkflowExecution($result['result']);
+                                $this->_decisions[] = $this->_completeWorkflowExecution($result['result']);
                         }
                     } else { // Retrying a job
                         ++$control['retry'];
-                        $control         = json_encode($control);
-                        $this->_decision = $this->_scheduleActivityTask(
+                        $this->_decisions[] = $this->_scheduleActivityTask(
                             'Example-Test',
                             '0.1',
                             $data['taskList']['name'],
                             isset($data['input']) ? $data['input'] : '',
-                            $control
+                            json_encode($control),
+                            'NONE',
+                            $this->_config['swf']['decision_timeout']
                         );
                     }
                     break 2;
-                case 'ActivityTaskCompleted':
+                case EventType::ACTIVITY_TASK_COMPLETED:
                     $result = $data;
                     break;
-                case 'ActivityTaskCanceled':
-                    if($data == 'No need to run this') {
+                case EventType::ACTIVITY_TASK_CANCELED:
+                    if ($data == 'No need to run this') {
                         // Return result and complete workflow
-                        $this->_decision = $this->_cancelWorkflowExecution($data);
+                        $this->_decisions[] = $this->_cancelWorkflowExecution($data);
                         break 2;
                     }
                     // Might have to retry
                     break;
+                case EventType::TIMER_STARTED:
+                    if (empty($control)) {
+                        $control = json_decode($data['control'], true);
+                    }
+                    break;
                 case 'MaxRetriesReached': // We've reached the retry limit for a particular activity
-                    $this->_decision = $this->_failWorkflowExecution($data['reason']);
+                    $this->_decisions[] = $this->_failWorkflowExecution($data['reason']);
                     break 2;
             }
         }
-
         $this->_sendDecision();
     }
 } 

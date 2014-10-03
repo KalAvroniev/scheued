@@ -7,6 +7,7 @@
  */
 namespace Scheued\Command;
 
+use Aws\Swf\Enum\DecisionType;
 use ReflectionClass;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
@@ -31,7 +32,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
         $this->setName($name)
             ->setProcessTitle($name)
             ->addArgument(
-                'task',
+                'task-list',
                 InputArgument::OPTIONAL, 'Used to specify the task list if we are not using the default',
                 $this->_getTaskName()
             );
@@ -39,7 +40,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
 
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $this->_taskList = $input->getArgument('task');
+        $this->_taskList = $input->getArgument('task-list');
         parent::execute($input, $output);
         if ($this->_countPendingTasks($input)) {
             $this->_poll($input);
@@ -93,26 +94,26 @@ abstract class AbstractDecider extends AbstractDeciderParser
 
     protected function _sendDecision()
     {
-        if (!empty($this->_decision)) {
+        if (!empty($this->_decisions)) {
             $this->_swfClient->respondDecisionTaskCompleted(
                 array(
                     'taskToken' => $this->_token,
-                    'decisions' => array(
-                        $this->_decision
-                    )
+                    'decisions' => $this->_decisions
                 )
             );
             // call a worker
-            switch ($this->_decision['decisionType']) {
-                case 'ScheduleActivityTask':
-                    $worker = strtolower(
-                        $this->_decision['scheduleActivityTaskDecisionAttributes']['activityType']['name']
-                    );
-                    $this->_swfActionCall(
-                        'http://development/scheued/public_html/worker/' . $worker,
-                        array('task' => $this->_taskList, 'async' => true)
-                    );
-                    break;
+            foreach($this->_decisions as $decision) {
+                switch ($decision['decisionType']) {
+                    case DecisionType::SCHEDULE_ACTIVITY_TASK:
+                        $worker = strtolower(
+                            $decision['scheduleActivityTaskDecisionAttributes']['activityType']['name']
+                        );
+                        $this->_swfActionCall(
+                            'http://development/scheued/public_html/worker/' . $worker,
+                            array('task-list' => $this->_taskList, 'async' => true)
+                        );
+                        break;
+                }
             }
         }
     }
@@ -128,7 +129,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
     {
         $data = array('timerId' => $timerId);
 
-        return array('decisionType' => 'CancelTimer', 'cancelTimerDecisionAttributes' => $data);
+        return array('decisionType' => DecisionType::CANCEL_TIMER, 'cancelTimerDecisionAttributes' => $data);
     }
 
     /**
@@ -142,7 +143,9 @@ abstract class AbstractDecider extends AbstractDeciderParser
     {
         $data = array('details' => $details);
 
-        return array('decisionType' => 'CancelWorkflowExecution', 'cancelWorkflowExecutionDecisionAttributes' => $data);
+        return array('decisionType'                              => DecisionType::CANCEL_WORKFLOW_EXECUTION,
+                     'cancelWorkflowExecutionDecisionAttributes' => $data
+        );
     }
 
     /**
@@ -157,7 +160,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
         $data = array('result' => $result);
 
         return array(
-            'decisionType'                                => 'CompleteWorkflowExecution',
+            'decisionType'                                => DecisionType::COMPLETE_WORKFLOW_EXECUTION,
             'completeWorkflowExecutionDecisionAttributes' => $data
         );
     }
@@ -189,7 +192,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
         $this->_buildOptionalData($data, __FUNCTION__, func_get_args());
 
         return array(
-            'decisionType'                                     => 'ContinueAsNewWorkflowExecution',
+            'decisionType'                                     => DecisionType::CONTINUE_AS_NEW_WORKFLOW_EXECUTION,
             'continueAsNewWorkflowExecutionDecisionAttributes' => $data
         );
     }
@@ -207,7 +210,9 @@ abstract class AbstractDecider extends AbstractDeciderParser
         $data = array('reason' => $reason);
         $this->_buildOptionalData($data, __FUNCTION__, func_get_args());
 
-        return array('decisionType' => 'FailWorkflowExecution', 'failWorkflowExecutionDecisionAttributes' => $data);
+        return array('decisionType'                            => DecisionType::FAIL_WORKFLOW_EXECUTION,
+                     'failWorkflowExecutionDecisionAttributes' => $data
+        );
     }
 
     /**
@@ -224,7 +229,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
         $data = array('makerName' => $name);
         $this->_buildOptionalData($data, __FUNCTION__, func_get_args());
 
-        return array('decisionType' => 'RecordMarker', 'recordMarkerDecisionAttributes' => $data);
+        return array('decisionType' => DecisionType::RECORD_MARKER, 'recordMarkerDecisionAttributes' => $data);
     }
 
     /**
@@ -241,7 +246,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
         $data = array('activityId' => $activityId);
 
         return array(
-            'decisionType'                                => 'RequestCancelActivityTask',
+            'decisionType'                                => DecisionType::REQUEST_CANCEL_ACTIVITY_TASK,
             'requestCancelActivityTaskDecisionAttributes' => $data
         );
     }
@@ -262,7 +267,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
         $this->_buildOptionalData($data, __FUNCTION__, func_get_args());
 
         return array(
-            'decisionType'                                             => 'RequestCancelExternalWorkflowExecution',
+            'decisionType'                                             => DecisionType::REQUEST_CANCEL_EXTERNAL_WORKFLOW_EXECUTION,
             'requestCancelExternalWorkflowExecutionDecisionAttributes' => $data
         );
     }
@@ -294,18 +299,20 @@ abstract class AbstractDecider extends AbstractDeciderParser
         $heartbeatTimeout = 'NONE'
     ) {
         $data = array(
-            'activityType' => array(
+            'activityType'           => array(
                 'name'    => $name,
                 'version' => $version
             ),
-            'activityId'   => $this->_generateId(),
-            'taskList'     => array(
+            'activityId'             => $this->_generateId(),
+            'taskList'               => array(
                 'name' => $taskList
             )
         );
         $this->_buildOptionalData($data, __FUNCTION__, func_get_args());
 
-        return array('decisionType' => 'ScheduleActivityTask', 'scheduleActivityTaskDecisionAttributes' => $data);
+        return array('decisionType'                           => DecisionType::SCHEDULE_ACTIVITY_TASK,
+                     'scheduleActivityTaskDecisionAttributes' => $data
+        );
     }
 
     /**
@@ -334,7 +341,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
         $this->_buildOptionalData($data, __FUNCTION__, func_get_args());
 
         return array(
-            'decisionType'                                      => 'SignalExternalWorkflowExecution',
+            'decisionType'                                      => DecisionType::SIGNAL_EXTERNAL_WORKFLOW_EXECUTION,
             'signalExternalWorkflowExecutionDecisionAttributes' => $data
         );
     }
@@ -381,7 +388,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
         $this->_buildOptionalData($data, __FUNCTION__, func_get_args());
 
         return array(
-            'decisionType'                                  => 'StartChildWorkflowExecution',
+            'decisionType'                                  => DecisionType::START_CHILD_WORKFLOW_EXECUTION,
             'startChildWorkflowExecutionDecisionAttributes' => $data
         );
     }
@@ -404,7 +411,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
         );
         $this->_buildOptionalData($data, __FUNCTION__, func_get_args());
 
-        return array('decisionType' => 'StartTimer', 'startTimerDecisionAttributes' => $data);
+        return array('decisionType' => DecisionType::START_TIMER, 'startTimerDecisionAttributes' => $data);
     }
 
     protected function _buildOptionalData(&$data, $function, $args)
@@ -435,7 +442,7 @@ abstract class AbstractDecider extends AbstractDeciderParser
     protected function _render(Request $request, ProcessBuilder &$commandBuilder)
     {
 //        $task = $request->query->get('task');
-        $task = $request->get('task');
+        $task = $request->get('task-list');
         if ($task) {
             $commandBuilder->add($task);
         }

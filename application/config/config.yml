@@ -2,9 +2,12 @@ defaults: &defaults
   aws_credentials:
     key: AKIAI5YJW26F3RO3COMQ
     secret: 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
+    region: us-east-1
   swf:
     domain: protrada
     retry: 3
+    decision_timeout: 180
+    resume_range: -1 day
 
 production:
   <<: *defaults
@@ -14,9 +17,11 @@ staging:
   aws_credentials:
     key: AKIAIAHWGHUBSRYOMN3Q
     secret: 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
+    region: us-east-1
 
 development:
   <<: *defaults
   aws_credentials:
     key: AKIAJMBAHTKRQHXW3F6Q
     secret: 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
+    region: us-east-1

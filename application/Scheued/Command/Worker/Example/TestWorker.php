@@ -28,7 +28,7 @@ class TestWorker extends AbstractWorker {
         // call a decider
         $this->_swfActionCall(
             'http://development/scheued/public_html/decider/' . strtolower(basename(__DIR__)),
-            array('task' => $this->_taskList, 'async' => true)
+            array('task-list' => $this->_taskList, 'async' => true)
         );
     }
 

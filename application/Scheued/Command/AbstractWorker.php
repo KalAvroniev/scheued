@@ -28,7 +28,7 @@ abstract class AbstractWorker extends AbstractCommand
         $this->setName($name)
             ->setProcessTitle($name)
             ->addArgument(
-                'task',
+                'task-list',
                 InputArgument::OPTIONAL, 'Used to specify the task list if we are not using the default',
                 $this->_getTaskName()
             );;
@@ -42,7 +42,7 @@ abstract class AbstractWorker extends AbstractCommand
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        $this->_taskList = $input->getArgument('task');
+        $this->_taskList = $input->getArgument('task-list');
         parent::execute($input, $output);
         if ($this->_countPendingTasks($input)) {
             $result       = $this->_swfClient->pollForActivityTask(
@@ -129,7 +129,7 @@ abstract class AbstractWorker extends AbstractCommand
     protected function _render(Request $request, ProcessBuilder &$commandBuilder)
     {
 //        $task = $request->query->get('task');
-        $task = $request->get('task');
+        $task = $request->get('task-list');
         if ($task) {
             $commandBuilder->add($task);
         }

@@ -1,5 +1,5 @@
 <?php
-use Symfony\Component\HttpFoundation\Response;
+set_time_limit(60);
 const APP_NAME    = 'Scheued';
 const APP_VERSION = 0.1;
 // Define path to application directory
@@ -30,7 +30,6 @@ if (!$loader = include LIBRARY_PATH . DIRECTORY_SEPARATOR . 'autoload.php') {
 $webApp = new \Silex\Application();
 // Init configuration
 $configPath = APPLICATION_PATH . DIRECTORY_SEPARATOR . 'config' . DIRECTORY_SEPARATOR . 'config.yml';
-//$webApp->register(new \Silex\Provider\Conf, array('config.path' => $configPath));
 // Register list of commands
 $finder       = new \Symfony\Component\Finder\Finder();
 $commandsPath = APPLICATION_PATH . DIRECTORY_SEPARATOR . APP_NAME . DIRECTORY_SEPARATOR . 'Command' . DIRECTORY_SEPARATOR;

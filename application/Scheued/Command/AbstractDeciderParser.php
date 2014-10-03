@@ -7,14 +7,15 @@
  */
 namespace Scheued\Command;
 
+use Aws\Swf\Enum\EventType;
 use Aws\Swf\Exception\SwfException;
 
 abstract class AbstractDeciderParser extends AbstractCommand
 {
     const TYPE = 'decider';
-    protected $_tasks = array();
-    protected $_token = '';
-    protected $_decision = 'There are no decisions to be made at this time';
+    protected $_tasks     = array();
+    protected $_token     = '';
+    protected $_decisions = array();
 
     protected function _parseDecisionData($i = 0, $decisionData = array())
     {
@@ -27,15 +28,16 @@ abstract class AbstractDeciderParser extends AbstractCommand
                 $valid = $this->_tasks->valid();
             }
             for (; $i < $total || $valid; $i++) {
-                if(is_array($this->_tasks)) {
+                if (is_array($this->_tasks)) {
                     $task = $this->_tasks[$i];
                 } else {
                     $this->_tasks->next();
-                    $task = $this->_tasks->current();
+                    $task  = $this->_tasks->current();
                     $valid = $this->_tasks->valid();
                 }
                 switch ($task['eventType']) {
-                    case 'ActivityTaskCompleted':
+                    case EventType::TIMER_STARTED:
+                    case EventType::ACTIVITY_TASK_COMPLETED:
                         $decisionData = array_merge(
                             $decisionData,
                             call_user_func_array(
@@ -43,8 +45,8 @@ abstract class AbstractDeciderParser extends AbstractCommand
                             )
                         );
                         break;
-                    case 'ActivityTaskScheduled':
-                    case 'WorkflowExecutionStarted':
+                    case EventType::ACTIVITY_TASK_SCHEDULED:
+                    case EventType::WORKFLOW_EXECUTION_STARTED:
                         $decisionData = array_merge(
                             $decisionData,
                             call_user_func_array(
@@ -62,11 +64,14 @@ abstract class AbstractDeciderParser extends AbstractCommand
         } catch (\Exception $e) {
             $eventType = (isset($task) && isset($task['eventType'])) ? $task['eventType'] : '';
             switch ($eventType) {
-                case 'ActivityTaskFailed':
-                case 'ScheduleActivityTaskFailed': // @todo change the way we retry
+                case EventType::ACTIVITY_TASK_TIMED_OUT:
+                case EventType::DECISION_TASK_TIMED_OUT:
+                case EventType::ACTIVITY_TASK_FAILED:
+                case EventType::SCHEDULE_ACTIVITY_TASK_FAILED:
+                    // retry/bypass errors to get to valuable data
                     $this->_parseDecisionData($i, $decisionData);
                     break;
-                case 'ActivityTaskCanceled':
+                case EventType::ACTIVITY_TASK_CANCELED:
                     // Pass the reason over to the decider
                     $decisionData[$eventType] = $e->getMessage();
                     $this->_parseDecisionData($i, $decisionData);
@@ -115,9 +120,7 @@ abstract class AbstractDeciderParser extends AbstractCommand
      */
     protected function _decisionTaskScheduled($task)
     {
-        //@todo do we need to get the $task['decisionTaskScheduledEventAttributes']['taskList']['name']?
-        /*@todo $task['decisionTaskScheduledEventAttributes']['startToCloseTimeout'] can be used to set execution time
-        limits in PHP*/
+        return array($task['eventType'] => $task['decisionTaskScheduledEventAttributes']);
     }
 
     /**
@@ -177,7 +180,7 @@ abstract class AbstractDeciderParser extends AbstractCommand
     protected function _activityTaskScheduled($task)
     {
         $data = $this->_checkRetryLimit($task['activityTaskScheduledEventAttributes']['control']);
-        if(!$data) {
+        if (!$data) {
             $data = array($task['eventType'] => $task['activityTaskScheduledEventAttributes']);
         }
 
@@ -586,7 +589,9 @@ abstract class AbstractDeciderParser extends AbstractCommand
      */
     protected function _requestCancelExternalWorkflowExecutionInitiated($task)
     {
-        $data = $this->_checkRetryLimit($task['requestCancelExternalWorkflowExecutionInitiatedEventAttributes']['control']);
+        $data = $this->_checkRetryLimit(
+            $task['requestCancelExternalWorkflowExecutionInitiatedEventAttributes']['control']
+        );
         if (!$data) {
             $data = array($task['eventType'] => $task['requestCancelExternalWorkflowExecutionInitiatedEventAttributes']);
         }
@@ -696,15 +701,17 @@ abstract class AbstractDeciderParser extends AbstractCommand
      *
      * @return array|null
      */
-    protected function _checkRetryLimit($control) {
+    protected function _checkRetryLimit($control)
+    {
         $control = json_decode($control, true);
-        if($this->_config['swf']['retry'] < $control['retry']) {
+        if ($this->_config['swf']['retry'] < $control['retry']) {
             return array(
                 'MaxRetriesReached' => array(
                     'reason' => 'We have reached the retry limit'
                 )
             );
         }
+
         return null;
     }
 
