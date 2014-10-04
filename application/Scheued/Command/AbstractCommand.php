@@ -13,6 +13,7 @@ use Doctrine\Common\Cache\FilesystemCache;
 use Exception;
 use Guzzle\Cache\DoctrineCacheAdapter;
 use Guzzle\Http\Client;
+use Guzzle\Http\Exception\MultiTransferException;
 use Guzzle\Plugin\Async\AsyncPlugin;
 use Silex\Application;
 use Symfony\Component\Console\Input\InputArgument;
@@ -29,9 +30,11 @@ abstract class AbstractCommand extends Command
     /** @var SwfClient */
     protected $_swfClient = null;
     protected $_snsClient = null;
-    protected $_config;
     protected $_token     = '';
     protected $_taskList  = '';
+    protected $_requests  = array();
+    protected $_httpClient;
+    protected $_config;
 
     /**
      * This is where we configure the command name, description and arguments or options
@@ -43,6 +46,7 @@ abstract class AbstractCommand extends Command
             'environment', InputArgument::REQUIRED | InputArgument::OPTIONAL, 'What environment to run the script in',
             'production'
         );
+        $this->_httpClient = new Client();
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
@@ -147,19 +151,32 @@ abstract class AbstractCommand extends Command
         return str_replace('.', '', microtime(true));
     }
 
-    protected function _swfActionCall($url, $query)
+    protected function _addRequest($url, $query)
     {
-        $client = new Client();
         if (isset($query['async']) && (bool)$query['async']) {
-            $client->addSubscriber(new AsyncPlugin());
+            $this->_httpClient->addSubscriber(new AsyncPlugin());
         }
         $url .= '?' . http_build_query($query);
-        $response = $client->get($url)->send();
-        if ($response->isSuccessful()) {
-            return $response->json(array('success' => 'Call made to ' . $url));
-        } else {
-            return $response->json(array('error' => 'Unable to make a call to ' . $url));
+        $this->_requests[] = $this->_httpClient->get($url);
+
+        return $this;
+    }
+
+    protected function _swfActivityCall() {
+        $messages = array();
+        $errors = array();
+        try {
+            $responses = $this->_httpClient->send($this->_requests);
+        } catch (MultiTransferException $e) {
+            foreach ($e as $exception) {
+                $errors[] = $exception->getMessage();
+            }
         }
+        foreach($responses as $response) {
+            $messages[] = $response->getBody();
+        }
+
+        return $response->json(array('success' => $messages, 'error' => $errors));
     }
 
     abstract protected function _countPendingTasks(InputInterface $input);

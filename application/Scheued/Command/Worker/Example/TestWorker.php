@@ -26,10 +26,10 @@ class TestWorker extends AbstractWorker {
         // This is where we do some execution logic
         $this->_returnRandomCompletion($params, $output);
         // call a decider
-        $this->_swfActionCall(
+        $this->_addRequest(
             'http://development/scheued/public_html/decider/' . strtolower(basename(__DIR__)),
             array('task-list' => $this->_taskList, 'async' => true)
-        );
+        )->_swfActivityCall();
     }
 
     protected function _returnRandomCompletion($params, OutputInterface $output) {

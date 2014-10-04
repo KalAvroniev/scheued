@@ -108,10 +108,10 @@ abstract class AbstractDecider extends AbstractDeciderParser
                         $worker = strtolower(
                             $decision['scheduleActivityTaskDecisionAttributes']['activityType']['name']
                         );
-                        $this->_swfActionCall(
+                        $this->_addRequest(
                             'http://development/scheued/public_html/worker/' . $worker,
                             array('task-list' => $this->_taskList, 'async' => true)
-                        );
+                        )->_swfActivityCall();
                         break;
                 }
             }
