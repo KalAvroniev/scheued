@@ -8,6 +8,7 @@ defaults: &defaults
     retry: 3
     decision_timeout: 180
     resume_range: -1 day
+  url: http://development/scheued/public_html/
 
 production:
   <<: *defaults

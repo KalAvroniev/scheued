@@ -34,14 +34,10 @@ class ExampleDecider extends AbstractDecider
         foreach ($decisionData as $eventType => $data) {
             switch ($eventType) {
                 case EventType::WORKFLOW_EXECUTION_STARTED: // Schedule the first activity in our workflow
-                    $this->_decisions[] = $this->_scheduleActivityTask(
-                        'Example-Test',
-                        '0.1',
-                        $data['taskList']['name'],
-                        $data['input'],
-                        json_encode(array('step' => 1)),
-                        'NONE',
-                        $this->_config['swf']['decision_timeout']
+                    // Delay next step
+                    $this->_decisions[] = $this->_scheduleNextStep(
+                        date('Y-m-d h:i:s', strtotime('+1 minute')),
+                        json_encode(array('step' => 1))
                     );
                     break 2;
                 case EventType::ACTIVITY_TASK_SCHEDULED:
@@ -52,19 +48,12 @@ class ExampleDecider extends AbstractDecider
                     if (!empty($result)) {
                         switch ($control['step']) {
                             case 1:
-                                // Delay next step
-                                $this->_decisions[] = $this->_scheduleNextStep(
-                                    date('Y-m-d h:i:s', strtotime('+1 minute')),
-                                    json_encode(array('step' => 2))
-                                );
-                                break;
-                            case 2:
                                 $this->_decisions[] = $this->_scheduleActivityTask(
                                     'Example-Test',
                                     '0.1',
                                     $data['taskList']['name'],
                                     $result['result'],
-                                    json_encode(array('step' => 3)),
+                                    json_encode(array('step' => 2)),
                                     'NONE',
                                     $this->_config['swf']['decision_timeout']
                                 );

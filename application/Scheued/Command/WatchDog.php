@@ -47,7 +47,7 @@ class WatchDog extends AbstractDeciderParser
                         );
                     }
                     $this->_addRequest(
-                        'http://development/scheued/public_html/' . str_replace(':', '/', $resumeData['process']),
+                        $this->_config['url'] . str_replace(':', '/', $resumeData['process']),
                         array('task-list' => $resumeData['task_list'], 'async' => true)
                     )->_swfActivityCall();
                 }

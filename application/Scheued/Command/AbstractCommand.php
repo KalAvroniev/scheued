@@ -188,7 +188,7 @@ abstract class AbstractCommand extends Command
     public function render(Request $request, Application $app)
     {
         try {
-            $path = explode('/', parse_url('http://development/scheued/public_html/decider/example', PHP_URL_PATH));
+            $path = explode('/', parse_url($this->_config['url'] . 'decider/example', PHP_URL_PATH));
             while (count($path) > 2) {
                 array_shift($path);
             }
