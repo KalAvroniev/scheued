@@ -234,10 +234,10 @@ class AbstractWorkflow extends AbstractCommand
             )
         );
         // call a decider
-        $this->_addRequest(
-            'http://development/scheued/public_html/decider/' . $this->_getTaskName(),
-            array('task-list' => $taskList, 'async' => true)
-        )->_swfActivityCall();
+//        $this->_addRequest(
+//            'http://development/scheued/public_html/decider/' . $this->_getTaskName(),
+//            array('task-list' => $taskList, 'async' => true)
+//        )->_swfActivityCall();
 
         return $result->getAll();
     }

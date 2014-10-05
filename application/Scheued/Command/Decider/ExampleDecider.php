@@ -53,9 +53,8 @@ class ExampleDecider extends AbstractDecider
                         switch ($control['step']) {
                             case 1:
                                 // Delay next step
-                                $this->_decisions[] = $this->_startTimer(
-                                    $this->_generateId(),
-                                    '60',
+                                $this->_decisions[] = $this->_scheduleNextStep(
+                                    date('Y-m-d h:i:s', strtotime('+1 minute')),
                                     json_encode(array('step' => 2))
                                 );
                                 break;
