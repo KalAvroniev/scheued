@@ -8,7 +8,7 @@ defaults: &defaults
     retry: 3
     decision_timeout: 180
     resume_range: -1 day
-  url: http://development/scheued/public_html/
+  url: http://swf.nameinvestors.com
 
 production:
   <<: *defaults
@@ -26,3 +26,4 @@ development:
     key: AKIAJMBAHTKRQHXW3F6Q
     secret: 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
     region: us-east-1
+  url: http://development/scheued/public_html/
