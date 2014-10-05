@@ -195,7 +195,7 @@ abstract class AbstractCommand extends Command
 //            $runAsync       = (bool)$request->query->get('async', false);
             $commandBuilder = new ProcessBuilder();
             $commandBuilder->setPrefix(
-                APPLICATION_PATH . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'cli.php'
+                APP_PATH . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'scripts' . DIRECTORY_SEPARATOR . 'cli.php'
             )
                 ->add(str_replace('/', ':', substr($request->getPathInfo(), 1)))
                 ->add(APPLICATION_ENV);
