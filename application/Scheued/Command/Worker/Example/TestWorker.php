@@ -11,7 +11,7 @@ use Scheued\Command\AbstractWorker;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-require_once '/home/vhosts/sites/nameinvestors.com/Application/bootstrap.php';
+require_once '/home/vhosts/sites/nameinvestors.com/public_html/api/index.php';
 
 class TestWorker extends AbstractWorker
 {
